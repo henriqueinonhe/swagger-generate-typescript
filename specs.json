@@ -1,0 +1,480 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "Some API",
+    "description": "Some API description.",
+    "termsOfService": "http://localhost:3001",
+    "version": "1.0.0",
+    "contact": {
+      "name": "Henrique Inonhe",
+      "email": "henriqueinonhe@gmail.com"
+    },
+    "license": {
+      "name": "MIT",
+      "url": "https://opensource.org/licenses/MIT"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "Primary server"
+    }
+  ],
+  "tags": [
+    {
+      "name": "line",
+      "description": "Mobile lines"
+    },
+    {
+      "name": "user",
+      "description": "Users"
+    }
+  ],
+  "paths": {
+    "/line": {
+      "get": {
+        "tags": [
+          "line"
+        ],
+        "summary": "Returns lines that match a certain criteria.",
+        "operationId": "getLines",
+        "parameters": [
+          {
+            "name": "number",
+            "in": "query",
+            "description": "Line number (or part of) of the line.",
+            "required": false,
+            "style": "form",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "simCard",
+            "in": "query",
+            "description": "SIM card number (or part of) related to the line.",
+            "required": false,
+            "style": "form",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "userId",
+            "in": "query",
+            "description": "Id of the user that owns the line.",
+            "required": false,
+            "style": "form",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "active",
+            "in": "query",
+            "description": "Id of the user that owns the line.",
+            "required": false,
+            "style": "form",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/ResultsPerPage"
+          },
+          {
+            "$ref": "#/components/parameters/PageNumber"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Line"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "line"
+        ],
+        "summary": "Creates new line.",
+        "operationId": "createLine",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Line"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Line created successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Line"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "line"
+        ],
+        "summary": "Updates line.",
+        "operationId": "updateLine",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Line"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Line updated successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Line"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
+    "/line/{lineId}": {
+      "delete": {
+        "tags": [
+          "line"
+        ],
+        "summary": "Deletes line.",
+        "operationId": "deleteLine",
+        "parameters": [
+          {
+            "name": "lineId",
+            "in": "path",
+            "description": "Line id.",
+            "required": true,
+            "style": "simple",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Line deleted successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Line"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
+    "/user/{userId}": {
+      "get": {
+        "tags": [
+          "user"
+        ],
+        "summary": "Gets user by id.",
+        "operationId": "getUser",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "description": "User id.",
+            "required": true,
+            "style": "simple",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Line"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "user"
+        ],
+        "summary": "Deletes user.",
+        "operationId": "deleteUser",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "description": "User id.",
+            "required": true,
+            "style": "simple",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User deleted successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Line"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
+    "/user": {
+      "post": {
+        "tags": [
+          "user"
+        ],
+        "summary": "Creates user.",
+        "operationId": "createUser",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/User"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "User created sucessfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "user"
+        ],
+        "summary": "Updates user.",
+        "operationId": "updateUser",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/User"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "User updated sucessfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Line": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "number": {
+            "type": "string"
+          },
+          "simCard": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "active": {
+            "type": "boolean"
+          }
+        }
+      },
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "firstName": {
+            "type": "string"
+          },
+          "lastName": {
+            "type": "string"
+          },
+          "networkUser": {
+            "type": "string"
+          },
+          "costCenter": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "responses": {
+      "Unauthorized": {
+        "description": "Unauthorized access.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "error": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "ServerError": {
+        "description": "Server error.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "error": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "parameters": {
+      "ResultsPerPage": {
+        "name": "resultsPerPage",
+        "in": "query",
+        "description": "Number of results per page.",
+        "required": true,
+        "style": "form",
+        "schema": {
+          "type": "integer",
+          "format": "int32",
+          "default": 5,
+          "enum": [
+            5,
+            10,
+            15,
+            20
+          ]
+        }
+      },
+      "PageNumber": {
+        "name": "page",
+        "in": "query",
+        "description": "Page number.",
+        "required": true,
+        "style": "form",
+        "schema": {
+          "type": "integer",
+          "format": "int32",
+          "default": 5,
+          "enum": [
+            5,
+            10,
+            15,
+            20
+          ]
+        }
+      }
+    }
+  }
+}
