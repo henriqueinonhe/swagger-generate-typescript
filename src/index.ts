@@ -1,5 +1,7 @@
-import { promises as fs } from "fs";
-import { HashMap, Info, OpenAPI, Operation, Parameter, Path } from "./models";
+import { promises as fs, write, writeFile } from "fs";
+import { resolve } from "path";
+import { Components, HashMap, Info, OpenAPI, Operation, Parameter, Path } from "./models";
+import { capitalize, isReference } from "./utils";
 
 interface OperationEntry {
   pathString : string;
@@ -14,91 +16,129 @@ async function main() : Promise<void> {
   const buffer = await fs.readFile("specs.json");
   const openApiObject = await JSON.parse(buffer.toString()) as OpenAPI;
   
-  //Extracting Base Url
-  const baseUrl = openApiObject.servers![0].url;
-  if(baseUrl === undefined) {
-    throw new Error("Base URL is undefined!");
-  }
-
-  const topLevelTags = openApiObject.tags;
-  const paths = openApiObject.paths;
-  const groupedOperations = groupOperationsByTag(paths);
-  const promises = [];
-  for(const tag in groupedOperations) {
-    const operationGroup = groupedOperations[tag];
-    const correspondingTopLevelTag = topLevelTags?.find(topLevelTag => topLevelTag.name === tag);
-
-    let methodsString = "";
-    for(const verb in operationGroup) {
-      const operationEntry = operationGroup[verb];
-      const operation = operationEntry.operation;
-      const operationId = operation.operationId; //Check whether it is defined
-      if(!operationId) {
-        throw new Error("Operation id is not defined!");
-      }
-
-      let queryParams = [];
-      let methodArguments = [];
-      if(operation.parameters) {
-        methodArguments.push(...operation.parameters.map(parameter => `${(parameter as Parameter).name} : ${(parameter as Parameter).schema?.type}`));
-        
-        queryParams.push(...operation.parameters.filter(parameter => (parameter as Parameter).in === "query").map(parameter => `${(parameter as Parameter).name}`));
-      }
-      
-      if(operation.requestBody) {
-        methodArguments.push("requestBody : any");
-      }
-      
-      const methodArgumentsString = methodArguments.join(", ");
-      const pathString = operationEntry.pathString;
-      const url = `${baseUrl}${pathString.replace(/\{/, "${")}`;
-      const data = `${operation.requestBody ? "requestBody" : "undefined"}`;
-      const queryParamsString = queryParams.length !== 0 ? `{\n        ${queryParams.join(`,\n        `)}\n      }` : "undefined";
-      methodsString +=
-` /**
-   * ${operation.summary}
-   * 
-   * ${operation.description} 
-   */
-  public static async ${operationId}(${methodArgumentsString}) : Promise<any> {
-    const response = await axios({
-      method: "${verb}",
-      url: \`${url}\`,
-      data: ${data},
-      params: ${queryParamsString}
-    });
-    return await response.data;
-  }
-
-`
-    }
-
-    const fileString =
-
-`import axios from "axios";
-
-/**
- * ${correspondingTopLevelTag?.name}
- * 
- * ${correspondingTopLevelTag?.description}
- */
-export class ${tag} {
-
-  ${methodsString}
-}
-    
-`
-    const promise = fs.writeFile(`./api/${tag}.ts`, fileString);
-    promises.push(promise);
-  }  
-
-  await Promise.all(promises);
+  await writeApiClients(openApiObject);
   await writeReadme(openApiObject.info);
 }
 
 main();
 
 //Extracted Functions
+async function writeApiClients(openApiObject : OpenAPI) : Promise<void> {
+  const components = openApiObject.components!;
+  const baseUrl = openApiObject.servers![0].url;
+  if(baseUrl === undefined) {
+    throw new Error("Base URL is undefined!");
+  }
+
+  const topLevelTags = openApiObject.tags!;
+  const paths = openApiObject.paths;
+  const groupedOperations = groupOperationsByTag(paths);
+  for(const tag in groupedOperations) {
+    const operationGroup = groupedOperations[tag]!;
+    const topLevelTag = topLevelTags.find(entry => entry.name === tag)!;
+    
+    let apiClientText = "";
+    apiClientText +=            `import axios from "axios";\n`;
+    apiClientText +=            `\n`;
+    apiClientText +=            `/**\n`;
+    apiClientText +=            ` * ${topLevelTag.name}\n`;
+    apiClientText +=            ` *\n`;
+    if(topLevelTag.description) {
+      apiClientText +=          ` * ${topLevelTag.description}\n`;
+      apiClientText +=          ` *\n`;
+    }
+    apiClientText +=            ` */\n`;
+    apiClientText +=            `class ${capitalize(tag)}ApiClient {\n`;
+    apiClientText +=            `\n`;
+
+    for(const verb in operationGroup) {
+      const operationEntry = operationGroup[verb];
+      const operation = operationEntry.operation;
+      const pathString = operationEntry.pathString;
+      const operationId = operation.operationId;
+      const url = `${baseUrl}${pathString}`.replace("{", "${");
+      if(!operationId) {
+        throw new Error(`${tag} -> ${pathString} -> ${verb} - Operation id missing!`);
+      }
+
+      apiClientText +=          `/**\n`;
+      if(operation.summary) {
+        apiClientText +=        ` * ${operation.summary}\n`;
+        apiClientText +=        ` *\n`;
+      }
+      if(operation.description) {
+        apiClientText +=        ` * ${operation.description}\n`;
+        apiClientText +=        ` *\n`;
+      }
+      if(operation.deprecated) {
+        apiClientText +=        ` * Deprecated\n`;
+        apiClientText +=        ` *\n`;
+      }
+      apiClientText +=          ` */\n`;
+      apiClientText +=          `  public static async ${operationId}(${buildApiClientMethodArgumentString(operation, components)}) : Promise<any> { \n`;
+      apiClientText +=          `    const response = await axios({\n`;
+      apiClientText +=          `      method: "${verb}",\n`;
+      apiClientText +=          `      url: \`${url}\`,\n`;
+      if(operation.requestBody) {
+        apiClientText +=        `      data: body,\n`;
+      }
+      apiClientText +=          `      params: {\n`;
+      if(operation.parameters) {
+        apiClientText +=        `        ${buildApiClientMethodParamsString(operation, components)}\n`
+      }
+      apiClientText +=          `      }\n`;
+      apiClientText +=          `    });\n`;
+      apiClientText +=          `    return await response.data;\n`;
+      apiClientText +=          `  }\n`;
+      apiClientText +=          `\n`;
+    }
+
+    apiClientText +=            `}\n`;
+    await fs.writeFile(`./api/${tag}.ts`, apiClientText);
+  }
+}
+
+function buildApiClientMethodArgumentString(operation : Operation, components : Components) : string {
+  const requiredArguments : Array<string> = [];
+  const optionalArguments : Array<string> = [];
+  if(operation.requestBody) {
+    requiredArguments.push("body : any");
+  }
+
+  if(operation.parameters) {
+    for(const parameter of operation.parameters) {
+      let resolvedParameter : Parameter;
+      if(isReference(parameter)) {
+        resolvedParameter = resolveReference(components, parameter.$ref) as Parameter;
+      }
+      else {
+        resolvedParameter = parameter;
+      }
+
+      const parameterName = resolvedParameter.name;
+      const parameterType = resolveType(resolvedParameter.schema.type);
+      const required = resolvedParameter.required || false;
+      if(required) {
+        requiredArguments.push(`${parameterName} : ${parameterType}`);
+      }
+      else {
+        optionalArguments.push(`${parameterName} ?: ${parameterType}`);
+      }
+    }
+  }
+
+
+  return [...requiredArguments, ...optionalArguments].join(", ");
+}
+
+function buildApiClientMethodParamsString(operation : Operation, components : Components) : string {
+  return operation.parameters!
+           .map(parameter => isReference(parameter) ? resolveReference(components, parameter.$ref) as Parameter : parameter)
+           .filter(parameter => parameter.in === "query")
+           .map(parameter => parameter.name)
+           .join(",\n        ");
+}
+
 async function writeReadme(info : Info) : Promise<void> {
   const title = info.title;
   const description = info.description;
@@ -148,6 +188,9 @@ async function writeReadme(info : Info) : Promise<void> {
   await fs.writeFile("./api/README.md", readmeText);
 }
 
+async function writeModels(openApiObject : OpenAPI) : Promise<void> {
+  
+}
 
 function groupOperationsByTag(paths : HashMap<Path>) : GroupedOperations {
   const verbs = ["get", "put", "post", "delete", "options", "head", "patch", "trace"];
@@ -177,4 +220,22 @@ function groupOperationsByTag(paths : HashMap<Path>) : GroupedOperations {
   }
 
   return groupedOperations;
+}
+
+function resolveReference(components : Components, refPath : string) : unknown {
+  const breadcrumbs = refPath.split("/").slice(2);
+  
+  let currentObject : any = components;
+  for(const breadcrumb of breadcrumbs) {
+    currentObject = currentObject[breadcrumb];
+  }
+  return currentObject;
+}
+
+function resolveType(type : string) : string {
+  if(type === "integer") {
+    return "number";
+  }
+
+  return type;
 }

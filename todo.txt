@@ -1,0 +1,2 @@
+- Deal with required/non required parameters - Done
+- Assemble models
