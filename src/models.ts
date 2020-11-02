@@ -29,15 +29,15 @@ export interface Server {
 type Paths = HashMap<Path>;
 
 export interface Components {
-  schemas ?: HashMap<Schema> | Reference;
-  responses ?: HashMap<Response> | Reference;
-  parameters ?: HashMap<Parameter> | Reference;
-  examples ?: HashMap<Example> | Reference;
-  requestBodies ?: HashMap<RequestBody> | Reference;
-  headers ?: HashMap<Header> | Reference;
-  securitySchemes ?: HashMap<SecurityScheme> | Reference;
-  links ?: HashMap<Link> | Reference;
-  callbacks ?: HashMap<Callback> | Reference;
+  schemas ?: HashMap<Schema | Reference>;
+  responses ?: HashMap<Response | Reference>;
+  parameters ?: HashMap<Parameter | Reference>;
+  examples ?: HashMap<Example | Reference>;
+  requestBodies ?: HashMap<RequestBody | Reference>;
+  headers ?: HashMap<Header | Reference>;
+  securitySchemes ?: HashMap<SecurityScheme | Reference>;
+  links ?: HashMap<Link | Reference>;
+  callbacks ?: HashMap<Callback | Reference>;
 }
 
 export interface SecurityScheme {

@@ -1,6 +1,5 @@
-import { promises as fs, write, writeFile } from "fs";
-import { resolve } from "path";
-import { Components, HashMap, Info, OpenAPI, Operation, Parameter, Path } from "./models";
+import { promises as fs } from "fs";
+import { Components, HashMap, Info, OpenAPI, Operation, Parameter, Path, Schema } from "./models";
 import { capitalize, isReference } from "./utils";
 
 interface OperationEntry {
@@ -18,6 +17,7 @@ async function main() : Promise<void> {
   
   await writeApiClients(openApiObject);
   await writeReadme(openApiObject.info);
+  await writeModels(openApiObject);
 }
 
 main();
@@ -48,7 +48,7 @@ async function writeApiClients(openApiObject : OpenAPI) : Promise<void> {
       apiClientText +=          ` *\n`;
     }
     apiClientText +=            ` */\n`;
-    apiClientText +=            `class ${capitalize(tag)}ApiClient {\n`;
+    apiClientText +=            `export class ${capitalize(tag)}ApiClient {\n`;
     apiClientText +=            `\n`;
 
     for(const verb in operationGroup) {
@@ -189,7 +189,26 @@ async function writeReadme(info : Info) : Promise<void> {
 }
 
 async function writeModels(openApiObject : OpenAPI) : Promise<void> {
-  
+  const components = openApiObject.components;
+
+  let modelsText = "";
+  if(components) {
+    if(components.schemas) {
+      for(const key in components.schemas) {
+        const schema = components.schemas[key]!;
+        const resolvedSchema = isReference(schema) ? resolveReference(components, schema.$ref) : schema;
+
+        if(resolvedSchema.type === "object") {
+          modelsText +=        `export interface ${capitalize(key)}Schema {\n`;
+          modelsText +=        `${resolveInterface(schema)}`;
+          modelsText +=        `}\n`;
+          modelsText +=        `\n`;
+        }
+      }
+    }
+  }
+
+  await fs.writeFile("./api/models.ts", modelsText);
 }
 
 function groupOperationsByTag(paths : HashMap<Path>) : GroupedOperations {
@@ -237,5 +256,21 @@ function resolveType(type : string) : string {
     return "number";
   }
 
+  if(type === "array") {
+    //FIXME
+    return "Array<any>";
+  }
+
   return type;
+}
+
+function resolveInterface(schema : Schema) : string {
+  let interfaceText = "";
+  const properties = schema.properties;
+  for(const key in properties) {
+    const property = properties[key];
+    interfaceText += `  ${key} : ${resolveType(property.type)};\n`;
+  }
+
+  return interfaceText;
 }
