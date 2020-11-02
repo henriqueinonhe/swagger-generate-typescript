@@ -1,5 +1,5 @@
 import { promises as fs } from "fs";
-import { Components, HashMap, Info, OpenAPI, Operation, Parameter, Path, Schema } from "./models";
+import { Components, HashMap, Info, OpenAPI, Operation, Parameter, Path, Reference, RequestBody, Schema } from "./models";
 import { capitalize, isReference } from "./utils";
 
 interface OperationEntry {
@@ -17,7 +17,7 @@ async function main() : Promise<void> {
   
   await writeApiClients(openApiObject);
   await writeReadme(openApiObject.info);
-  await writeModels(openApiObject);
+  // await writeModels(openApiObject);
 }
 
 main();
@@ -101,22 +101,28 @@ async function writeApiClients(openApiObject : OpenAPI) : Promise<void> {
 function buildApiClientMethodArgumentString(operation : Operation, components : Components) : string {
   const requiredArguments : Array<string> = [];
   const optionalArguments : Array<string> = [];
-  if(operation.requestBody) {
-    requiredArguments.push("body : any");
+
+  const requestBody = operation.requestBody;
+  if(requestBody) {
+    const resolvedRequestBody = isReference(requestBody) ? resolveReference(components, requestBody) as RequestBody : requestBody;
+    const schema = resolvedRequestBody.content["application/json"].schema;
+    const resolvedSchema = isReference(schema) ? resolveReference(components, schema) as Schema : schema;
+
+    requiredArguments.push(`body : ${resolveType(resolvedSchema)}`);
   }
 
   if(operation.parameters) {
     for(const parameter of operation.parameters) {
       let resolvedParameter : Parameter;
       if(isReference(parameter)) {
-        resolvedParameter = resolveReference(components, parameter.$ref) as Parameter;
+        resolvedParameter = resolveReference(components, parameter) as Parameter;
       }
       else {
         resolvedParameter = parameter;
       }
 
       const parameterName = resolvedParameter.name;
-      const parameterType = resolveType(resolvedParameter.schema.type);
+      const parameterType = resolveType(resolvedParameter.schema);
       const required = resolvedParameter.required || false;
       if(required) {
         requiredArguments.push(`${parameterName} : ${parameterType}`);
@@ -133,7 +139,7 @@ function buildApiClientMethodArgumentString(operation : Operation, components : 
 
 function buildApiClientMethodParamsString(operation : Operation, components : Components) : string {
   return operation.parameters!
-           .map(parameter => isReference(parameter) ? resolveReference(components, parameter.$ref) as Parameter : parameter)
+           .map(parameter => isReference(parameter) ? resolveReference(components, parameter) as Parameter : parameter)
            .filter(parameter => parameter.in === "query")
            .map(parameter => parameter.name)
            .join(",\n        ");
@@ -188,28 +194,28 @@ async function writeReadme(info : Info) : Promise<void> {
   await fs.writeFile("./api/README.md", readmeText);
 }
 
-async function writeModels(openApiObject : OpenAPI) : Promise<void> {
-  const components = openApiObject.components;
+// async function writeModels(openApiObject : OpenAPI) : Promise<void> {
+//   const components = openApiObject.components;
 
-  let modelsText = "";
-  if(components) {
-    if(components.schemas) {
-      for(const key in components.schemas) {
-        const schema = components.schemas[key]!;
-        const resolvedSchema = isReference(schema) ? resolveReference(components, schema.$ref) : schema;
+//   let modelsText = "";
+//   if(components) {
+//     if(components.schemas) {
+//       for(const key in components.schemas) {
+//         const schema = components.schemas[key]!;
+//         const resolvedSchema = isReference(schema) ? resolveReference(components, schema.$ref) : schema;
 
-        if(resolvedSchema.type === "object") {
-          modelsText +=        `export interface ${capitalize(key)}Schema {\n`;
-          modelsText +=        `${resolveInterface(schema)}`;
-          modelsText +=        `}\n`;
-          modelsText +=        `\n`;
-        }
-      }
-    }
-  }
+//         if(resolvedSchema.type === "object") {
+//           modelsText +=        `export interface ${capitalize(key)}Schema {\n`;
+//           modelsText +=        `${resolveInterface(schema)}`;
+//           modelsText +=        `}\n`;
+//           modelsText +=        `\n`;
+//         }
+//       }
+//     }
+//   }
 
-  await fs.writeFile("./api/models.ts", modelsText);
-}
+//   await fs.writeFile("./api/models.ts", modelsText);
+// }
 
 function groupOperationsByTag(paths : HashMap<Path>) : GroupedOperations {
   const verbs = ["get", "put", "post", "delete", "options", "head", "patch", "trace"];
@@ -241,7 +247,8 @@ function groupOperationsByTag(paths : HashMap<Path>) : GroupedOperations {
   return groupedOperations;
 }
 
-function resolveReference(components : Components, refPath : string) : unknown {
+function resolveReference(components : Components, reference : Reference) : unknown {
+  const refPath = reference.$ref;
   const breadcrumbs = refPath.split("/").slice(2);
   
   let currentObject : any = components;
@@ -251,26 +258,42 @@ function resolveReference(components : Components, refPath : string) : unknown {
   return currentObject;
 }
 
-function resolveType(type : string) : string {
+function resolveType(schema : Schema) : string {
+  const type = schema.type;
   if(type === "integer") {
     return "number";
   }
 
   if(type === "array") {
-    //FIXME
-    return "Array<any>";
+    const items = schema.items;
+    if(items.length === 0) {
+      return `Array<${resolveType(items[0])}>`;
+    }
+
+    return `[${items.map((item : Schema) => resolveType(item)).join(", ")}]`;
+  }
+
+  if(type === "object") {
+    let interfaceText = "{";
+    const properties = schema.properties;
+    for(const key in properties) {
+      const property = properties[key];
+      interfaceText += `${key} : ${resolveType(property)}; `;
+    }
+    interfaceText += `}`;
+    return interfaceText;
   }
 
   return type;
 }
 
-function resolveInterface(schema : Schema) : string {
-  let interfaceText = "";
-  const properties = schema.properties;
-  for(const key in properties) {
-    const property = properties[key];
-    interfaceText += `  ${key} : ${resolveType(property.type)};\n`;
-  }
+// function resolveInterface(schema : Schema) : string {
+//   let interfaceText = "";
+//   const properties = schema.properties;
+//   for(const key in properties) {
+//     const property = properties[key];
+//     interfaceText += `  ${key} : ${resolveType(property.type)};\n`;
+//   }
 
-  return interfaceText;
-}
+//   return interfaceText;
+// }

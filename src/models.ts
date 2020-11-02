@@ -167,7 +167,7 @@ export interface Operation {
   externalDocs ?: ExternalDocumentation;
   operationId ?: string;
   parameters ?: Array<Parameter | Reference>;
-  requestBody ?: Array<Parameter | Reference>;
+  requestBody ?: RequestBody | Reference;
   responses : Responses;
   callbacks ?: HashMap<Callback | Reference>;
   deprecated ?: boolean;
