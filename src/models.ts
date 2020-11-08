@@ -73,11 +73,58 @@ export interface ServerVariable {
   description ?: string;
 }
 
-// export interface Schema {
-//   // Not happy with this
-// }
+type EnumerableDataType = "integer" | "number" | "string";
+type NonEnumerableDataType = "boolean" | "array" | "object";
+type DataType = EnumerableDataType | NonEnumerableDataType;
 
-export type Schema = any;
+type BaseSchema = {
+  required ?: boolean;
+};
+
+export type EnumerableSchema = BaseSchema & ({
+  type : "integer" | "number";
+  enum ?: Array<number>;
+  default ?: number;
+} |
+{
+  type : string;
+  enum ?: Array<string>
+  default ?: string;
+});
+
+export type ArraySchema = BaseSchema & {
+  type : "array";
+  items : Schema;
+  default ?: Array<any>;
+};
+
+export type ObjectSchema = BaseSchema & {
+  type : "object";
+  properties : HashMap<Schema>;
+  default ?: object;
+};
+
+export type NonEnumerableSchema = {
+  required ?: boolean;
+  type : "boolean";
+  default ?: boolean;
+} | ArraySchema | ObjectSchema;
+
+export type Schema = EnumerableSchema | NonEnumerableSchema;
+
+export function isEnumerableSchema(schema : Schema) : schema is EnumerableSchema {
+  return schema.type === "integer" ||
+         schema.type === "number" ||
+         schema.type === "string";
+}
+
+export function isArraySchema(schema : Schema) : schema is ArraySchema {
+  return schema.type === "array";
+}
+
+export function isObjectSchema(schema : Schema) : schema is ObjectSchema {
+  return schema.type === "object";
+}
 
 export interface Response {
   description : string;
@@ -277,4 +324,8 @@ export interface OAuthFlow {
   tokenUrl ?: string;
   refreshUrl ?: string;
   scopes : HashMap<string>;
+}
+
+export function isReference(object : any) : object is Reference {
+  return "$ref" in object;
 }

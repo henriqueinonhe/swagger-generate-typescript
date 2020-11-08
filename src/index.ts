@@ -1,14 +1,19 @@
 import { promises as fs } from "fs";
-import { Components, HashMap, Info, OpenAPI, Operation, Parameter, Path, Reference, RequestBody, Schema } from "./models";
-import { capitalize, isReference } from "./utils";
+import { stringify } from "querystring";
+import { Components, HashMap, Info, OpenAPI, Operation, Parameter, Path, Reference, RequestBody, Schema, Tag, isReference, isArraySchema, isEnumerableSchema, isObjectSchema } from "./models";
+import { capitalize } from "./utils";
 
 interface OperationEntry {
   pathString : string;
   operation : Operation;
 }
 
-interface GroupedOperations {
-  [tag : string] : {[verb : string] : OperationEntry};
+interface OperationGroup {
+  [verb : string] : OperationEntry;
+}
+
+interface OperationGroupTable {
+  [tag : string] : OperationGroup;
 }
 
 async function main() : Promise<void> {
@@ -26,104 +31,135 @@ main();
 async function writeApiClients(openApiObject : OpenAPI) : Promise<void> {
   const components = openApiObject.components!;
   const baseUrl = openApiObject.servers![0].url;
+  
   if(baseUrl === undefined) {
     throw new Error("Base URL is undefined!");
   }
 
-  const topLevelTags = openApiObject.tags!;
   const paths = openApiObject.paths;
-  const groupedOperations = groupOperationsByTag(paths);
-  for(const tag in groupedOperations) {
-    const operationGroup = groupedOperations[tag]!;
-    const topLevelTag = topLevelTags.find(entry => entry.name === tag)!;
-    
+  const operationGroupTable = groupOperationsByTag(paths);
+
+  for(const tag in operationGroupTable) {
+    const tagObject = openApiObject.tags!.find(tagObject => tagObject.name === tag)!;
+    const clientName = tagObject.name;
+    const clientDescription = tagObject.description;
+    const operationGroup = operationGroupTable[tag]!;
+    writeSingleApiClient(clientName, clientDescription, tag, operationGroup, baseUrl, components);
+  }
+}
+
+async function writeSingleApiClient(name : string, description : string | undefined, tag : string, operationGroup : OperationGroup, baseUrl : string, components : Components) : Promise<void> {
     let apiClientText = "";
     apiClientText +=            `import axios from "axios";\n`;
     apiClientText +=            `\n`;
     apiClientText +=            `/**\n`;
-    apiClientText +=            ` * ${topLevelTag.name}\n`;
+    apiClientText +=            ` * ${name}\n`;
     apiClientText +=            ` *\n`;
-    if(topLevelTag.description) {
-      apiClientText +=          ` * ${topLevelTag.description}\n`;
+    if(description) {
+      apiClientText +=          ` * ${description}\n`;
       apiClientText +=          ` *\n`;
     }
     apiClientText +=            ` */\n`;
     apiClientText +=            `export class ${capitalize(tag)}ApiClient {\n`;
     apiClientText +=            `\n`;
-
-    for(const verb in operationGroup) {
-      const operationEntry = operationGroup[verb];
-      const operation = operationEntry.operation;
-      const pathString = operationEntry.pathString;
-      const operationId = operation.operationId;
-      const url = `${baseUrl}${pathString}`.replace("{", "${");
-      if(!operationId) {
-        throw new Error(`${tag} -> ${pathString} -> ${verb} - Operation id missing!`);
-      }
-
-      apiClientText +=          `/**\n`;
-      if(operation.summary) {
-        apiClientText +=        ` * ${operation.summary}\n`;
-        apiClientText +=        ` *\n`;
-      }
-      if(operation.description) {
-        apiClientText +=        ` * ${operation.description}\n`;
-        apiClientText +=        ` *\n`;
-      }
-      if(operation.deprecated) {
-        apiClientText +=        ` * Deprecated\n`;
-        apiClientText +=        ` *\n`;
-      }
-      apiClientText +=          ` */\n`;
-      apiClientText +=          `  public static async ${operationId}(${buildApiClientMethodArgumentString(operation, components)}) : Promise<any> { \n`;
-      apiClientText +=          `    const response = await axios({\n`;
-      apiClientText +=          `      method: "${verb}",\n`;
-      apiClientText +=          `      url: \`${url}\`,\n`;
-      if(operation.requestBody) {
-        apiClientText +=        `      data: body,\n`;
-      }
-      apiClientText +=          `      params: {\n`;
-      if(operation.parameters) {
-        apiClientText +=        `        ${buildApiClientMethodParamsString(operation, components)}\n`
-      }
-      apiClientText +=          `      }\n`;
-      apiClientText +=          `    });\n`;
-      apiClientText +=          `    return await response.data;\n`;
-      apiClientText +=          `  }\n`;
-      apiClientText +=          `\n`;
-    }
-
+    apiClientText +=            `${buildApiClientClassBodyString(operationGroup, baseUrl, tag, components)}`
     apiClientText +=            `}\n`;
     await fs.writeFile(`./api/${tag}.ts`, apiClientText);
+}
+
+function buildApiClientClassBodyString(operationGroup : OperationGroup, baseUrl : string, tag : string, components : Components) : string {
+  let classBodyText = "";
+  for(const verb in operationGroup) {
+    const operationEntry = operationGroup[verb];
+    const operation = operationEntry.operation;
+    const pathString = operationEntry.pathString;
+    const url = `${baseUrl}${pathString}`.replace("{", "${");
+
+    classBodyText += buildApiClientMethodString(operation, verb, url, components);
   }
+  return classBodyText;
+}
+
+function buildApiClientMethodString(operation : Operation, verb : string, url : string, components : Components) : string {
+  const {
+    operationId,
+    summary,
+    description,
+    deprecated = false,
+    requestBody,
+    parameters
+  } = operation;
+
+  if(!operationId) {
+    throw new Error(`${url} -> ${verb} - Operation id missing!`);
+  }
+
+  let methodText = "";
+  methodText +=          `/**\n`;
+  if(summary) {
+    methodText +=        ` * ${summary}\n`;
+    methodText +=        ` *\n`;
+  }
+  if(description) {
+    methodText +=        ` * ${description}\n`;
+    methodText +=        ` *\n`;
+  }
+  if(deprecated) {
+    methodText +=        ` * Deprecated\n`;
+    methodText +=        ` *\n`;
+  }
+  methodText +=          ` */\n`;
+  methodText +=          `  public static async ${operationId}(${buildApiClientMethodArgumentString(operation, components)}) : Promise<${buildApiClientMethodReturnTypeString()}> { \n`;
+  methodText +=          `    const response = await axios({\n`;
+  methodText +=          `      method: "${verb}",\n`;
+  methodText +=          `      url: \`${url}\`,\n`;
+  if(requestBody) {
+    methodText +=        `      data: body,\n`;
+  }
+  methodText +=          `      params: {\n`;
+  if(parameters) {
+    methodText +=        `        ${buildApiClientMethodParamsString(operation, components)}\n`
+  }
+  methodText +=          `      }\n`;
+  methodText +=          `    });\n`;
+  methodText +=          `    return await response.data;\n`;
+  methodText +=          `  }\n`;
+  methodText +=          `\n`;
+
+  return methodText;
 }
 
 function buildApiClientMethodArgumentString(operation : Operation, components : Components) : string {
+  const {
+    requestBody,
+    parameters
+  } = operation;
+
   const requiredArguments : Array<string> = [];
   const optionalArguments : Array<string> = [];
 
-  const requestBody = operation.requestBody;
   if(requestBody) {
-    const resolvedRequestBody = isReference(requestBody) ? resolveReference(components, requestBody) as RequestBody : requestBody;
-    const schema = resolvedRequestBody.content["application/json"].schema;
-    const resolvedSchema = isReference(schema) ? resolveReference(components, schema) as Schema : schema;
+    const resolvedRequestBody = resolve(components, requestBody) as RequestBody;
+    const required = resolvedRequestBody.required || false;
+    const schema = resolvedRequestBody.content["application/json"].schema; //Hard coded but might change in the future
+    const resolvedSchema = resolve(components, schema) as Schema;
 
-    requiredArguments.push(`body : ${resolveType(resolvedSchema)}`);
+    if(required) {
+      requiredArguments.push(`body : ${resolveType(resolvedSchema)}`);
+    }
+    else {
+      optionalArguments.push(`body ?: ${resolveType(resolvedSchema)}`);
+    }
   }
 
-  if(operation.parameters) {
-    for(const parameter of operation.parameters) {
-      let resolvedParameter : Parameter;
-      if(isReference(parameter)) {
-        resolvedParameter = resolveReference(components, parameter) as Parameter;
-      }
-      else {
-        resolvedParameter = parameter;
-      }
-
+  if(parameters) {
+    for(const parameter of parameters) {
+      const resolvedParameter = resolve(components, parameter) as Parameter;
       const parameterName = resolvedParameter.name;
-      const parameterType = resolveType(resolvedParameter.schema);
-      const required = resolvedParameter.required || false;
+      const resolvedSchema = resolve(components, resolvedParameter.schema) as Schema;
+      const parameterType = resolveType(resolvedSchema);
+      const parameterIn = resolvedParameter.in;
+      const required = parameterIn === "path" ? true : (resolvedParameter.required || false);
       if(required) {
         requiredArguments.push(`${parameterName} : ${parameterType}`);
       }
@@ -139,10 +175,15 @@ function buildApiClientMethodArgumentString(operation : Operation, components : 
 
 function buildApiClientMethodParamsString(operation : Operation, components : Components) : string {
   return operation.parameters!
-           .map(parameter => isReference(parameter) ? resolveReference(components, parameter) as Parameter : parameter)
+           .map(parameter => isReference(parameter) ? resolveReferenceDirectly(components, parameter) as Parameter : parameter)
            .filter(parameter => parameter.in === "query")
            .map(parameter => parameter.name)
            .join(",\n        ");
+}
+
+function buildApiClientMethodReturnTypeString() : string {
+  //TODO
+  return "";
 }
 
 async function writeReadme(info : Info) : Promise<void> {
@@ -217,9 +258,9 @@ async function writeReadme(info : Info) : Promise<void> {
 //   await fs.writeFile("./api/models.ts", modelsText);
 // }
 
-function groupOperationsByTag(paths : HashMap<Path>) : GroupedOperations {
+function groupOperationsByTag(paths : HashMap<Path>) : OperationGroupTable {
   const verbs = ["get", "put", "post", "delete", "options", "head", "patch", "trace"];
-  const groupedOperations : GroupedOperations = {};
+  const operationGroupTable : OperationGroupTable = {};
   for(const pathString in paths) {
     const path = paths[pathString];
 
@@ -231,11 +272,11 @@ function groupOperationsByTag(paths : HashMap<Path>) : GroupedOperations {
 
         for(const tag of tags) {
           //Create a tag bucket if one doesn't exist already
-          if(!groupedOperations[tag]){
-            groupedOperations[tag] = {};
+          if(!operationGroupTable[tag]){
+            operationGroupTable[tag] = {};
           }
 
-          groupedOperations[tag][verb] = {
+          operationGroupTable[tag][verb] = {
             operation,
             pathString
           };
@@ -244,10 +285,10 @@ function groupOperationsByTag(paths : HashMap<Path>) : GroupedOperations {
     }
   }
 
-  return groupedOperations;
+  return operationGroupTable;
 }
 
-function resolveReference(components : Components, reference : Reference) : unknown {
+function resolveReferenceDirectly(components : Components, reference : Reference) : unknown {
   const refPath = reference.$ref;
   const breadcrumbs = refPath.split("/").slice(2);
   
@@ -259,32 +300,39 @@ function resolveReference(components : Components, reference : Reference) : unkn
 }
 
 function resolveType(schema : Schema) : string {
-  const type = schema.type;
-  if(type === "integer") {
-    return "number";
-  }
-
-  if(type === "array") {
-    const items = schema.items;
-    if(items.length === 0) {
-      return `Array<${resolveType(items[0])}>`;
+  const { type } = schema;
+  
+  if(isEnumerableSchema(schema)) { //integer, number and string types
+    const enumeration = schema.enum;
+    if(enumeration) {
+      return enumeration.join(" | ");
+    }
+    
+    if(type === "integer") {
+      return "number";
     }
 
-    return `[${items.map((item : Schema) => resolveType(item)).join(", ")}]`;
+    return type;
   }
 
-  if(type === "object") {
-    let interfaceText = "{";
+  if(isArraySchema(schema)) {
+    const itemsSchema = schema.items;
+    return `Array<${resolveType(itemsSchema)}>`;    
+  }
+
+  if(isObjectSchema(schema)) {
+    let typeString = `{ `;
+
     const properties = schema.properties;
     for(const key in properties) {
       const property = properties[key];
-      interfaceText += `${key} : ${resolveType(property)}; `;
+      typeString += `${key} : ${resolveType(property)}; `;
     }
-    interfaceText += `}`;
-    return interfaceText;
+    typeString += ` }`;
+    return typeString;
   }
 
-  return type;
+  return "boolean";
 }
 
 // function resolveInterface(schema : Schema) : string {
@@ -297,3 +345,11 @@ function resolveType(schema : Schema) : string {
 
 //   return interfaceText;
 // }
+
+function resolve(components : Components, object : any) : unknown {
+  if(isReference(object)) {
+    return resolveReferenceDirectly(components, object);
+  }
+
+  return object;
+}
