@@ -1,6 +1,6 @@
 import { promises as fs } from "fs";
 import { stringify } from "querystring";
-import { Components, HashMap, Info, OpenAPI, Operation, Parameter, Path, Reference, RequestBody, Schema, Tag, isReference, isArraySchema, isEnumerableSchema, isObjectSchema } from "./models";
+import { Components, HashMap, Info, OpenAPI, Operation, Parameter, Path, Reference, RequestBody, Schema, Tag, isReference, isArraySchema, isEnumerableSchema, isObjectSchema, Responses, Response } from "./models";
 import { capitalize } from "./utils";
 
 interface OperationEntry {
@@ -87,7 +87,8 @@ function buildApiClientMethodString(operation : Operation, verb : string, url : 
     description,
     deprecated = false,
     requestBody,
-    parameters
+    parameters,
+    responses
   } = operation;
 
   if(!operationId) {
@@ -109,7 +110,7 @@ function buildApiClientMethodString(operation : Operation, verb : string, url : 
     methodText +=        ` *\n`;
   }
   methodText +=          ` */\n`;
-  methodText +=          `  public static async ${operationId}(${buildApiClientMethodArgumentString(operation, components)}) : Promise<${buildApiClientMethodReturnTypeString()}> { \n`;
+  methodText +=          `  public static async ${operationId}(${buildApiClientMethodArgumentString(operation, components)}) : Promise<${buildApiClientMethodReturnTypeString(responses, components)}> { \n`;
   methodText +=          `    const response = await axios({\n`;
   methodText +=          `      method: "${verb}",\n`;
   methodText +=          `      url: \`${url}\`,\n`;
@@ -139,7 +140,7 @@ function buildApiClientMethodArgumentString(operation : Operation, components : 
   const optionalArguments : Array<string> = [];
 
   if(requestBody) {
-    const resolvedRequestBody = resolve(components, requestBody) as RequestBody;
+    const resolvedRequestBody = resolve(components, requestBody);
     const required = resolvedRequestBody.required || false;
     const schema = resolvedRequestBody.content["application/json"].schema; //Hard coded but might change in the future
     const resolvedSchema = resolve(components, schema) as Schema;
@@ -154,7 +155,7 @@ function buildApiClientMethodArgumentString(operation : Operation, components : 
 
   if(parameters) {
     for(const parameter of parameters) {
-      const resolvedParameter = resolve(components, parameter) as Parameter;
+      const resolvedParameter = resolve(components, parameter);
       const parameterName = resolvedParameter.name;
       const resolvedSchema = resolve(components, resolvedParameter.schema) as Schema;
       const parameterType = resolveType(resolvedSchema);
@@ -175,15 +176,24 @@ function buildApiClientMethodArgumentString(operation : Operation, components : 
 
 function buildApiClientMethodParamsString(operation : Operation, components : Components) : string {
   return operation.parameters!
-           .map(parameter => isReference(parameter) ? resolveReferenceDirectly(components, parameter) as Parameter : parameter)
+           .map(parameter => isReference(parameter) ? resolveReferenceExplicitely(components, parameter) as Parameter : parameter)
            .filter(parameter => parameter.in === "query")
            .map(parameter => parameter.name)
            .join(",\n        ");
 }
 
-function buildApiClientMethodReturnTypeString() : string {
-  //TODO
-  return "";
+function buildApiClientMethodReturnTypeString(responses : Responses | Reference<Responses>, components : Components) : string {
+  const actualResponses = resolve(components, responses);
+  const schemas : Array<Schema | Reference<Schema>> = [];
+  for(const httpResponse in actualResponses) {
+    const response = (actualResponses as Record<string, Response | Reference<Response>>)[httpResponse];
+    const actualResponse = resolve(components, response);
+    const schema = actualResponse.content!["application/json"].schema;
+    const actualSchema = resolve(components, schema)!;
+    schemas.push(actualSchema);
+  }
+
+  return schemas.map(schema => resolveType(schema as Schema)).join(" | ");
 }
 
 async function writeReadme(info : Info) : Promise<void> {
@@ -288,7 +298,7 @@ function groupOperationsByTag(paths : HashMap<Path>) : OperationGroupTable {
   return operationGroupTable;
 }
 
-function resolveReferenceDirectly(components : Components, reference : Reference) : unknown {
+function resolveReferenceExplicitely<T>(components : Components, reference : Reference<T>) : T {
   const refPath = reference.$ref;
   const breadcrumbs = refPath.split("/").slice(2);
   
@@ -346,9 +356,9 @@ function resolveType(schema : Schema) : string {
 //   return interfaceText;
 // }
 
-function resolve(components : Components, object : any) : unknown {
+function resolve<T>(components : Components, object : T | Reference<T>) : T {
   if(isReference(object)) {
-    return resolveReferenceDirectly(components, object);
+    return resolveReferenceExplicitely(components, object);
   }
 
   return object;

@@ -29,15 +29,15 @@ export interface Server {
 type Paths = HashMap<Path>;
 
 export interface Components {
-  schemas ?: HashMap<Schema | Reference>;
-  responses ?: HashMap<Response | Reference>;
-  parameters ?: HashMap<Parameter | Reference>;
-  examples ?: HashMap<Example | Reference>;
-  requestBodies ?: HashMap<RequestBody | Reference>;
-  headers ?: HashMap<Header | Reference>;
-  securitySchemes ?: HashMap<SecurityScheme | Reference>;
-  links ?: HashMap<Link | Reference>;
-  callbacks ?: HashMap<Callback | Reference>;
+  schemas ?: HashMap<Schema | Reference<Schema>>;
+  responses ?: HashMap<Response | Reference<Responses>>;
+  parameters ?: HashMap<Parameter | Reference<Parameter>>;
+  examples ?: HashMap<Example | Reference<Example>>;
+  requestBodies ?: HashMap<RequestBody | Reference<RequestBody>>;
+  headers ?: HashMap<Header | Reference<Header>>;
+  securitySchemes ?: HashMap<SecurityScheme | Reference<SecurityScheme>>;
+  links ?: HashMap<Link | Reference<Link>>;
+  callbacks ?: HashMap<Callback | Reference<Callback>>;
 }
 
 export interface SecurityScheme {
@@ -128,9 +128,9 @@ export function isObjectSchema(schema : Schema) : schema is ObjectSchema {
 
 export interface Response {
   description : string;
-  headers ?: HashMap<Header | Reference>;
+  headers ?: HashMap<Header | Reference<Header>>;
   content ?: HashMap<MediaType>;
-  links ?: HashMap<Link | Reference>;
+  links ?: HashMap<Link | Reference<Link>>;
 }
 
 export interface Parameter {
@@ -143,9 +143,9 @@ export interface Parameter {
   style ?: string;
   explode ?: boolean;
   allowReserved ?: boolean;
-  schema ?: Schema | Reference;
+  schema ?: Schema | Reference<Schema>;
   example : any;
-  examples : HashMap<Example | Reference>;
+  examples : HashMap<Example | Reference<Example>>;
   content ?: HashMap<MediaType>;
 }
 
@@ -170,9 +170,9 @@ export interface Header {
   style ?: string;
   explode ?: boolean;
   allowReserved ?: boolean;
-  schema ?: Parameter | Reference;
+  schema ?: Parameter | Reference<Schema>;
   example : any;
-  examples : HashMap<Example | Reference>;
+  examples : HashMap<Example | Reference<Example>>;
   content ?: HashMap<MediaType>;
 }
 
@@ -187,7 +187,7 @@ export interface Link {
 
 export type Callback = HashMap<Path>;
 
-export interface Reference {
+export interface Reference<T> {
   $ref : string;
 }
 
@@ -204,7 +204,7 @@ export interface Path {
   patch ?: Operation;
   trace ?: Operation;
   servers ?: Array<Server>;
-  parameters ?: Array<Parameter | Reference>;
+  parameters ?: Array<Parameter | Reference<Parameter>>;
 }
 
 export interface Operation {
@@ -213,10 +213,10 @@ export interface Operation {
   description ?: string;
   externalDocs ?: ExternalDocumentation;
   operationId ?: string;
-  parameters ?: Array<Parameter | Reference>;
-  requestBody ?: RequestBody | Reference;
+  parameters ?: Array<Parameter | Reference<Parameter>>;
+  requestBody ?: RequestBody | Reference<RequestBody>;
   responses : Responses;
-  callbacks ?: HashMap<Callback | Reference>;
+  callbacks ?: HashMap<Callback | Reference<Callback>>;
   deprecated ?: boolean;
   security ?: Array<SecurityRequirement>;
   servers ?: Array<Server>;
@@ -225,82 +225,82 @@ export interface Operation {
 export type SecurityRequirement = HashMap<Array<string>>;
 
 export interface Responses {
-  default ?: Response | Reference;
-  "100" : Response | Reference;
-  "101" : Response | Reference;
-  "102" : Response | Reference;
-  "200" : Response | Reference;
-  "201" : Response | Reference;
-  "202" : Response | Reference;
-  "203" : Response | Reference;
-  "204" : Response | Reference;
-  "205" : Response | Reference;
-  "206" : Response | Reference;
-  "207" : Response | Reference;
-  "208" : Response | Reference;
-  "226" : Response | Reference;
-  "300" : Response | Reference;
-  "301" : Response | Reference;
-  "302" : Response | Reference;
-  "303" : Response | Reference;
-  "304" : Response | Reference;
-  "305" : Response | Reference;
-  "307" : Response | Reference;
-  "308" : Response | Reference;
-  "400" : Response | Reference;
-  "401" : Response | Reference;
-  "402" : Response | Reference;
-  "403" : Response | Reference;
-  "404" : Response | Reference;
-  "405" : Response | Reference;
-  "406" : Response | Reference;
-  "407" : Response | Reference;
-  "408" : Response | Reference;
-  "409" : Response | Reference;
-  "410" : Response | Reference;
-  "411" : Response | Reference;
-  "412" : Response | Reference;
-  "413" : Response | Reference;
-  "414" : Response | Reference;
-  "415" : Response | Reference;
-  "416" : Response | Reference;
-  "417" : Response | Reference;
-  "418" : Response | Reference;
-  "421" : Response | Reference;
-  "422" : Response | Reference;
-  "423" : Response | Reference;
-  "424" : Response | Reference;
-  "426" : Response | Reference;
-  "428" : Response | Reference;
-  "429" : Response | Reference;
-  "431" : Response | Reference;
-  "444" : Response | Reference;
-  "451" : Response | Reference;
-  "499" : Response | Reference;
-  "500" : Response | Reference;
-  "501" : Response | Reference;
-  "502" : Response | Reference;
-  "503" : Response | Reference;
-  "504" : Response | Reference;
-  "505" : Response | Reference;
-  "506" : Response | Reference;
-  "507" : Response | Reference;
-  "508" : Response | Reference;
-  "510" : Response | Reference;
-  "511" : Response | Reference;
-  "599" : Response | Reference;
+  default ?: Response | Reference<Response>;
+  "100" ?: Response | Reference<Response>;
+  "101" ?: Response | Reference<Response>;
+  "102" ?: Response | Reference<Response>;
+  "200" ?: Response | Reference<Response>;
+  "201" ?: Response | Reference<Response>;
+  "202" ?: Response | Reference<Response>;
+  "203" ?: Response | Reference<Response>;
+  "204" ?: Response | Reference<Response>;
+  "205" ?: Response | Reference<Response>;
+  "206" ?: Response | Reference<Response>;
+  "207" ?: Response | Reference<Response>;
+  "208" ?: Response | Reference<Response>;
+  "226" ?: Response | Reference<Response>;
+  "300" ?: Response | Reference<Response>;
+  "301" ?: Response | Reference<Response>;
+  "302" ?: Response | Reference<Response>;
+  "303" ?: Response | Reference<Response>;
+  "304" ?: Response | Reference<Response>;
+  "305" ?: Response | Reference<Response>;
+  "307" ?: Response | Reference<Response>;
+  "308" ?: Response | Reference<Response>;
+  "400" ?: Response | Reference<Response>;
+  "401" ?: Response | Reference<Response>;
+  "402" ?: Response | Reference<Response>;
+  "403" ?: Response | Reference<Response>;
+  "404" ?: Response | Reference<Response>;
+  "405" ?: Response | Reference<Response>;
+  "406" ?: Response | Reference<Response>;
+  "407" ?: Response | Reference<Response>;
+  "408" ?: Response | Reference<Response>;
+  "409" ?: Response | Reference<Response>;
+  "410" ?: Response | Reference<Response>;
+  "411" ?: Response | Reference<Response>;
+  "412" ?: Response | Reference<Response>;
+  "413" ?: Response | Reference<Response>;
+  "414" ?: Response | Reference<Response>;
+  "415" ?: Response | Reference<Response>;
+  "416" ?: Response | Reference<Response>;
+  "417" ?: Response | Reference<Response>;
+  "418" ?: Response | Reference<Response>;
+  "421" ?: Response | Reference<Response>;
+  "422" ?: Response | Reference<Response>;
+  "423" ?: Response | Reference<Response>;
+  "424" ?: Response | Reference<Response>;
+  "426" ?: Response | Reference<Response>;
+  "428" ?: Response | Reference<Response>;
+  "429" ?: Response | Reference<Response>;
+  "431" ?: Response | Reference<Response>;
+  "444" ?: Response | Reference<Response>;
+  "451" ?: Response | Reference<Response>;
+  "499" ?: Response | Reference<Response>;
+  "500" ?: Response | Reference<Response>;
+  "501" ?: Response | Reference<Response>;
+  "502" ?: Response | Reference<Response>;
+  "503" ?: Response | Reference<Response>;
+  "504" ?: Response | Reference<Response>;
+  "505" ?: Response | Reference<Response>;
+  "506" ?: Response | Reference<Response>;
+  "507" ?: Response | Reference<Response>;
+  "508" ?: Response | Reference<Response>;
+  "510" ?: Response | Reference<Response>;
+  "511" ?: Response | Reference<Response>;
+  "599" ?: Response | Reference<Response>;
 }
 
 export interface MediaType {
-  schema ?: Schema | Reference;
+  schema ?: Schema | Reference<Schema>;
   example ?: any;
-  examples ?: HashMap<Example | Reference>;
+  examples ?: HashMap<Example | Reference<Example>>;
   encoding ?: HashMap<Encoding>;
 }
 
 export interface Encoding {
   contentType ?: string;
-  headers ?: HashMap<Header | Reference>;
+  headers ?: HashMap<Header | Reference<Header>>;
   style ?: string;
   explode ?: boolean;
   allowReserved ?: boolean;
@@ -326,6 +326,6 @@ export interface OAuthFlow {
   scopes : HashMap<string>;
 }
 
-export function isReference(object : any) : object is Reference {
+export function isReference(object : any) : object is Reference<any> {
   return "$ref" in object;
 }
