@@ -75,7 +75,7 @@ function buildApiClientClassBodyString(operationGroup : OperationGroup, baseUrl 
     const operationEntry = operationGroup[verb];
     const operation = operationEntry.operation;
     const pathString = operationEntry.pathString;
-    const url = `${baseUrl}${pathString}`.replace("{", "${");
+    const url = `${baseUrl}${pathString}`.replace(/{/g, "${");
 
     classBodyText += buildApiClientMethodString(operation, verb, url, components);
   }
