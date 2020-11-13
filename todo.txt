@@ -1,2 +1,3 @@
 - Deal with required/non required parameters - Done
+- Migrate dealing with required/optional parameters in type resolution
 - Assemble models
